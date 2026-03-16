@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "instagram-dashboard-server"
+version = "0.1.0"
+description = "AI-powered Instagram content automation API"
+authors = ["aepeul"]
+license = "MIT"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.6"
+uvicorn = {extras = ["standard"], version = "^0.32.1"}
+pydantic-settings = "^2.6.1"
+sqlalchemy = "^2.0.36"
+alembic = "^1.14.0"
+asyncpg = "^0.30.0"
+aiosqlite = "^0.20.0"
+greenlet = "^3.1.1"
+python-dotenv = "^1.0.1"
+httpx = "^0.28.1"
+psycopg2-binary = "^2.9.10"
+openai = "^2.28.0"
+python-multipart = "^0.0.22"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
