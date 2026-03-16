@@ -1,1 +1,1 @@
-# Kritic Server
+# Instagram Dashboard Server
