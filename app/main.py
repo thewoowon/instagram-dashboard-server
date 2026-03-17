@@ -25,6 +25,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "https://instagram-dashboard.vercel.app",
+        "https://instagram-dashboard-five.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
