@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.core.config import settings
 
 DATABASE_URL = settings.DATABASE_URL
@@ -39,3 +39,6 @@ SyncSessionLocal = sessionmaker(
     autoflush=False,
     bind=sync_engine,
 )
+
+# 스케줄러 등 request 밖에서 사용할 세션 팩토리
+async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)

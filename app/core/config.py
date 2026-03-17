@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
-    STORAGE_BUCKET: str = "creative-assets"
+    STORAGE_BUCKET: str = "instagram-dashboard"
+    INSTAGRAM_ACCESS_TOKEN: str = ""
+    INSTAGRAM_ACCOUNT_ID: str = ""
 
     class Config:
         env_file = ".env"

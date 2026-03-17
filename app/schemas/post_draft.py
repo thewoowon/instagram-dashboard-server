@@ -24,6 +24,17 @@ class PostDraftUpdate(BaseModel):
     cta: Optional[str] = None
 
 
+
+class CreativeAssetOut(BaseModel):
+    id: UUID
+    asset_type: str
+    storage_url: str
+    prompt: str
+    preview_url: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
 class PostDraftOut(BaseModel):
     id: UUID
     account_id: UUID
@@ -38,6 +49,7 @@ class PostDraftOut(BaseModel):
     approval_status: str
     created_at: datetime
     updated_at: datetime
+    creative_assets: list[CreativeAssetOut] = []
     account: Optional[AccountOut] = None
 
     model_config = {"from_attributes": True}

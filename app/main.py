@@ -2,13 +2,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.api.v1.api import api_router
+from app.services.scheduler import start_scheduler, stop_scheduler
 from app.core.config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting up Instagram Dashboard API...")
+    start_scheduler()
     yield
+    stop_scheduler()
     print("Shutting down...")
 
 

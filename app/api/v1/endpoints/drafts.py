@@ -19,7 +19,7 @@ async def list_drafts(
 ):
     query = (
         select(PostDraft)
-        .options(selectinload(PostDraft.account))
+        .options(selectinload(PostDraft.account), selectinload(PostDraft.creative_assets))
         .order_by(PostDraft.created_at.desc())
     )
     if account_id:
@@ -34,7 +34,7 @@ async def list_drafts(
 async def get_draft(draft_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(PostDraft)
-        .options(selectinload(PostDraft.account))
+        .options(selectinload(PostDraft.account), selectinload(PostDraft.creative_assets))
         .where(PostDraft.id == draft_id)
     )
     draft = result.scalar_one_or_none()
@@ -69,7 +69,7 @@ async def update_draft(draft_id: str, body: PostDraftUpdate, db: AsyncSession = 
 async def approve_draft(draft_id: str, body: ApprovalAction, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(PostDraft)
-        .options(selectinload(PostDraft.account))
+        .options(selectinload(PostDraft.account), selectinload(PostDraft.creative_assets))
         .where(PostDraft.id == draft_id)
     )
     draft = result.scalar_one_or_none()
@@ -92,6 +92,53 @@ async def approve_draft(draft_id: str, body: ApprovalAction, db: AsyncSession = 
     else:
         raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
 
+    await db.commit()
+    await db.refresh(draft)
+    return draft
+
+
+@router.post("/{draft_id}/publish", response_model=PostDraftOut)
+async def publish_draft(draft_id: str, db: AsyncSession = Depends(get_db)):
+    """즉시 Instagram에 발행."""
+    from sqlalchemy.orm import selectinload as sl
+    from app.models.creative_asset import CreativeAsset
+    from app.services.instagram_service import publish_to_instagram
+
+    result = await db.execute(
+        select(PostDraft)
+        .options(sl(PostDraft.account), sl(PostDraft.creative_assets))
+        .where(PostDraft.id == draft_id)
+    )
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    assets = draft.creative_assets or []
+    image_asset = next((a for a in assets if a.asset_type == "image"), None)
+    if not image_asset:
+        raise HTTPException(status_code=400, detail="발행할 이미지가 없습니다.")
+
+    caption_text = (
+        f"{draft.hook}\n\n{draft.caption}\n\n{draft.cta}\n\n"
+        + " ".join(f"#{tag}" for tag in (draft.hashtags or []))
+    )
+
+    try:
+        media_id = await publish_to_instagram(
+            image_url=image_asset.storage_url,
+            caption=caption_text,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    draft.approval_status = "published"
+    job = PublishJob(
+        post_draft_id=draft.id,
+        scheduled_at=datetime.utcnow(),
+        publish_status="published",
+        meta_publish_id=media_id,
+    )
+    db.add(job)
     await db.commit()
     await db.refresh(draft)
     return draft
