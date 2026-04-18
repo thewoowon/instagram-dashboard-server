@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from app.dependencies import get_db
+from app.core.auth import get_current_organization
 from app.models.account import Account
+from app.models.organization import Organization
 from app.models.post_draft import PostDraft
 from app.models.content_idea import ContentIdea
 from app.services.generate_service import generate_draft_content, generate_ideas
 from app.schemas.post_draft import PostDraftOut
 from app.schemas.content_idea import ContentIdeaOut
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -18,7 +20,7 @@ class GenerateDraftRequest(BaseModel):
     account_id: str
     topic: str
     angle: str = ""
-    format_type: str = "carousel"  # carousel | single | reels_script
+    format_type: str = "carousel"
     idea_id: str | None = None
 
 
@@ -28,15 +30,19 @@ class GenerateIdeasRequest(BaseModel):
 
 
 @router.post("/draft", response_model=PostDraftOut, status_code=201)
-async def generate_draft(body: GenerateDraftRequest, db: AsyncSession = Depends(get_db)):
+async def generate_draft(
+    body: GenerateDraftRequest,
+    db: AsyncSession = Depends(get_db),
+    org: Organization = Depends(get_current_organization),
+):
     """AI로 드래프트 생성 후 DB 저장."""
-    # 계정 조회
-    result = await db.execute(select(Account).where(Account.id == body.account_id))
+    result = await db.execute(
+        select(Account).where(Account.id == body.account_id, Account.org_id == org.id)
+    )
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # GPT 생성
     try:
         generated = await generate_draft_content(
             brand_name=account.brand_name,
@@ -47,7 +53,6 @@ async def generate_draft(body: GenerateDraftRequest, db: AsyncSession = Depends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
-    # DB 저장
     draft = PostDraft(
         account_id=account.id,
         idea_id=body.idea_id,
@@ -63,7 +68,6 @@ async def generate_draft(body: GenerateDraftRequest, db: AsyncSession = Depends(
     db.add(draft)
     await db.commit()
 
-    # idea 상태 업데이트
     if body.idea_id:
         idea_result = await db.execute(select(ContentIdea).where(ContentIdea.id == body.idea_id))
         idea = idea_result.scalar_one_or_none()
@@ -71,20 +75,28 @@ async def generate_draft(body: GenerateDraftRequest, db: AsyncSession = Depends(
             idea.status = "in_progress"
             await db.commit()
 
-    # account 포함해서 반환
     await db.refresh(draft)
     result2 = await db.execute(
         select(PostDraft)
-        .options(selectinload(PostDraft.account))
+        .options(
+            selectinload(PostDraft.account),
+            selectinload(PostDraft.creative_assets),
+        )
         .where(PostDraft.id == draft.id)
     )
     return result2.scalar_one()
 
 
 @router.post("/ideas", response_model=list[ContentIdeaOut], status_code=201)
-async def generate_ideas_endpoint(body: GenerateIdeasRequest, db: AsyncSession = Depends(get_db)):
+async def generate_ideas_endpoint(
+    body: GenerateIdeasRequest,
+    db: AsyncSession = Depends(get_db),
+    org: Organization = Depends(get_current_organization),
+):
     """AI로 아이디어 후보 생성 후 DB 저장."""
-    result = await db.execute(select(Account).where(Account.id == body.account_id))
+    result = await db.execute(
+        select(Account).where(Account.id == body.account_id, Account.org_id == org.id)
+    )
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")

@@ -37,7 +37,6 @@ async def generate_draft_content(
             {"role": "user", "content": task_prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.8,
     )
 
     content = response.choices[0].message.content
@@ -73,7 +72,6 @@ async def generate_ideas(brand_name: str, count: int = 5) -> list[dict]:
             {"role": "user", "content": prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.9,
     )
 
     content = response.choices[0].message.content

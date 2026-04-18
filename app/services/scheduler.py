@@ -22,7 +22,8 @@ async def process_due_jobs():
         result = await db.execute(
             select(PublishJob)
             .options(
-                selectinload(PublishJob.draft).selectinload(PostDraft.creative_assets)
+                selectinload(PublishJob.draft).selectinload(PostDraft.creative_assets),
+                selectinload(PublishJob.draft).selectinload(PostDraft.account),
             )
             .where(
                 PublishJob.publish_status == "queued",
@@ -34,11 +35,19 @@ async def process_due_jobs():
         for job in jobs:
             draft = job.draft
             try:
-                assets = draft.creative_assets or []
-                image_asset = next((a for a in assets if a.asset_type == "image"), None)
+                image_assets = [a for a in (draft.creative_assets or []) if a.asset_type == "image"]
 
-                if not image_asset:
+                if not image_assets:
                     raise ValueError("발행할 이미지가 없습니다. 이미지를 먼저 업로드하세요.")
+
+                if not draft.account.access_token:
+                    raise ValueError(f"{draft.account.brand_name} 계정에 access_token이 설정되지 않았습니다.")
+
+                image_urls = (
+                    [image_assets[0].storage_url]
+                    if draft.format_type == "single"
+                    else [a.storage_url for a in image_assets]
+                )
 
                 caption_text = (
                     f"{draft.hook}\n\n{draft.caption}\n\n{draft.cta}\n\n"
@@ -46,8 +55,9 @@ async def process_due_jobs():
                 )
 
                 media_id = await publish_to_instagram(
-                    image_url=image_asset.storage_url,
+                    image_urls=image_urls,
                     caption=caption_text,
+                    access_token=draft.account.access_token,
                 )
 
                 job.publish_status = "published"
